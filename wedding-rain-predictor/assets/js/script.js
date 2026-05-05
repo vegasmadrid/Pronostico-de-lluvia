@@ -9,7 +9,10 @@ function initWRPAutocomplete() {
 
     autocomplete.addListener('place_changed', function() {
         const place = autocomplete.getPlace();
-        if (!place.geometry) return;
+        if (!place.geometry) {
+            console.log("No geometry for place:", place);
+            return;
+        }
 
         document.getElementById('lat').value = place.geometry.location.lat();
         document.getElementById('lng').value = place.geometry.location.lng();
@@ -34,6 +37,15 @@ jQuery(document).ready(function($) {
     $form.on('submit', function(e) {
         e.preventDefault();
 
+        // Check if lat/lng are present (User must select from Google Autocomplete)
+        const lat = $('#lat').val();
+        const lng = $('#lng').val();
+
+        if (!lat || !lng) {
+            alert('Por favor, selecciona una ubicación de la lista sugerida por Google Maps para mayor precisión.');
+            return;
+        }
+
         const formData = $(this).serialize();
 
         $form.fadeOut(400, function() {
@@ -52,13 +64,14 @@ jQuery(document).ready(function($) {
                     } else {
                         alert('Error: ' + response.data);
                         $loading.hide();
-                        $form.show();
+                        $form.fadeIn();
                     }
                 },
-                error: function() {
-                    alert('Error de conexión');
+                error: function(jqXHR, textStatus, errorThrown) {
+                    console.error("AJAX Error:", textStatus, errorThrown);
+                    alert('Error de conexión al procesar el pronóstico.');
                     $loading.hide();
-                    $form.show();
+                    $form.fadeIn();
                 }
             });
         });
@@ -84,7 +97,7 @@ jQuery(document).ready(function($) {
                     <div class="wrp-result-title">¡Buenas noticias!</div>
                     <p>Nuestro modelo predictivo avanzado indica una <strong>probabilidad de lluvia inferior al 5%</strong> para el día y lugar de vuestra boda.</p>
                     <p><em>Basado en el análisis de ${data.historical_points} puntos de datos históricos.</em></p>
-                    <button onclick="window.location.reload()" style="margin-top:20px; cursor:pointer;">Realizar otra consulta</button>
+                    <button onclick="window.location.reload()" style="margin-top:20px; cursor:pointer; padding: 10px 20px;">Realizar otra consulta</button>
                 </div>
             `;
         } else {
@@ -94,13 +107,17 @@ jQuery(document).ready(function($) {
                     <div class="wrp-result-title">Pronóstico Incierto</div>
                     <p>Existe una <strong>probabilidad moderada de precipitaciones</strong>. Os recomendamos tener un plan B preparado para asegurar que el día sea perfecto.</p>
                     <p><em>Análisis de precisión geoespacial completado.</em></p>
-                    <button onclick="window.location.reload()" style="margin-top:20px; cursor:pointer;">Realizar otra consulta</button>
+                    <button onclick="window.location.reload()" style="margin-top:20px; cursor:pointer; padding: 10px 20px;">Realizar otra consulta</button>
                 </div>
             `;
         }
 
         $loading.fadeOut(400, function() {
             $result.html(html).fadeIn();
+            // Scroll to result on mobile
+            $('html, body').animate({
+                scrollTop: $("#wrp-container").offset().top - 20
+            }, 500);
         });
     }
 });
