@@ -13,7 +13,8 @@ function wrp_shortcode() {
 
 	$api_key = get_option( 'wrp_google_maps_api_key' );
 	if ( $api_key ) {
-		wp_enqueue_script( 'google-maps', "https://maps.googleapis.com/maps/api/js?key={$api_key}&libraries=places&callback=initWRPAutocomplete", array(), null, true );
+		// Use a unique callback to avoid conflicts
+		wp_enqueue_script( 'google-maps', "https://maps.googleapis.com/maps/api/js?key={$api_key}&libraries=places&callback=wrpInitAutocomplete", array(), null, true );
 	}
 
 	$privacy_page_id = get_option( 'wrp_privacy_policy_page' );
@@ -21,8 +22,8 @@ function wrp_shortcode() {
 
 	ob_start();
 	?>
-	<div id="wrp-container">
-		<form id="wrp-form">
+	<div id="wrp-container" class="wrp-container">
+		<form id="wrp-form" method="post" action="" onsubmit="return false;">
 			<h2 class="wrp-title">Pronóstico de Lluvia para vuestra Boda</h2>
 			<div class="wrp-grid">
 				<div class="wrp-field">
@@ -51,13 +52,14 @@ function wrp_shortcode() {
 				</div>
 				<div class="wrp-field full-width">
 					<label for="wedding_place">Lugar de la celebración</label>
-					<input type="text" id="wedding_place" name="wedding_place" placeholder="Busca el lugar o finca..." required>
+					<input type="text" id="wedding_place" name="wedding_place" placeholder="Escribe el nombre del lugar o finca..." required autocomplete="off">
 					<input type="hidden" id="lat" name="lat">
 					<input type="hidden" id="lng" name="lng">
+					<p id="wrp-place-error" style="color: #e74c3c; font-size: 12px; margin-top: 5px; display: none;">Debes seleccionar un lugar de la lista sugerida por Google.</p>
 				</div>
 				<div class="wrp-field full-width checkbox-field">
 					<input type="checkbox" id="privacy" name="privacy" required>
-					<label for="privacy">Acepto la <a href="<?php echo esc_url( $privacy_url ); ?>" target="_blank">política de privacidad</a> para recibir el pronóstico y comunicaciones relacionadas.</label>
+					<label for="privacy">Acepto la <a href="<?php echo esc_url( $privacy_url ); ?>" target="_blank">política de privacidad</a> para recibir el pronóstico.</label>
 				</div>
 			</div>
 			<button type="submit" id="wrp-submit">Calcular Probabilidades</button>
@@ -69,11 +71,16 @@ function wrp_shortcode() {
 				<div class="cloud cloud2"></div>
 				<div class="cloud cloud3"></div>
 			</div>
-			<div id="wrp-messages">Iniciando análisis...</div>
+			<div id="wrp-messages">Iniciando análisis de precisión...</div>
 		</div>
 
 		<div id="wrp-result" style="display: none;">
 			<!-- Result will be injected here -->
+		</div>
+
+		<div id="wrp-error-notice" style="display: none; background: #fdf2f2; border: 1px solid #f8b4b4; color: #9b2c2c; padding: 15px; margin-top: 20px; border-radius: 5px; text-align: center;">
+			<p id="wrp-error-message"></p>
+			<button type="button" id="wrp-retry" style="margin-top: 10px; cursor: pointer;">Intentar de nuevo</button>
 		</div>
 	</div>
 	<?php
@@ -86,7 +93,7 @@ add_shortcode( 'wedding_rain_predictor', 'wrp_shortcode' );
  */
 function wrp_register_assets() {
 	wp_register_style( 'wrp-style', WRP_URL . 'assets/css/style.css' );
-	wp_register_script( 'wrp-script', WRP_URL . 'assets/js/script.js', array( 'jquery' ), '1.0.0', true );
+	wp_register_script( 'wrp-script', WRP_URL . 'assets/js/script.js', array( 'jquery' ), '1.1.0', true );
 	wp_localize_script( 'wrp-script', 'wrp_ajax', array(
 		'ajax_url' => admin_url( 'admin-ajax.php' ),
 		'nonce'    => wp_create_nonce( 'wrp_nonce' ),

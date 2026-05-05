@@ -1,4 +1,6 @@
-function initWRPAutocomplete() {
+// Export to window to be accessible by Google Maps callback
+window.wrpInitAutocomplete = function() {
+    console.log("WRP: Initializing Autocomplete");
     const input = document.getElementById('wedding_place');
     if (!input) return;
 
@@ -9,21 +11,29 @@ function initWRPAutocomplete() {
 
     autocomplete.addListener('place_changed', function() {
         const place = autocomplete.getPlace();
+        console.log("WRP: Place selected", place);
+
         if (!place.geometry) {
-            console.log("No geometry for place:", place);
+            document.getElementById('lat').value = '';
+            document.getElementById('lng').value = '';
             return;
         }
 
         document.getElementById('lat').value = place.geometry.location.lat();
         document.getElementById('lng').value = place.geometry.location.lng();
+        jQuery('#wrp-place-error').hide();
     });
-}
+};
 
 jQuery(document).ready(function($) {
+    console.log("WRP: Script ready");
+
     const $form = $('#wrp-form');
     const $loading = $('#wrp-loading');
     const $result = $('#wrp-result');
     const $messages = $('#wrp-messages');
+    const $errorNotice = $('#wrp-error-notice');
+    const $errorMessage = $('#wrp-error-message');
 
     const scientificMessages = [
         "Iniciando conexión con estaciones meteorológicas...",
@@ -35,60 +45,78 @@ jQuery(document).ready(function($) {
     ];
 
     $form.on('submit', function(e) {
+        console.log("WRP: Form submitted");
         e.preventDefault();
+        e.stopPropagation();
 
-        // Check if lat/lng are present (User must select from Google Autocomplete)
         const lat = $('#lat').val();
         const lng = $('#lng').val();
 
         if (!lat || !lng) {
-            alert('Por favor, selecciona una ubicación de la lista sugerida por Google Maps para mayor precisión.');
-            return;
+            console.log("WRP: Missing coordinates");
+            $('#wrp-place-error').fadeIn();
+            $('#wedding_place').focus();
+            return false;
         }
 
         const formData = $(this).serialize();
+        console.log("WRP: Data serialized, starting animation");
 
+        $errorNotice.hide();
         $form.fadeOut(400, function() {
             $loading.fadeIn();
             cycleMessages(0);
 
+            console.log("WRP: Sending AJAX to", wrp_ajax.ajax_url);
             $.ajax({
                 url: wrp_ajax.ajax_url,
                 type: 'POST',
                 data: formData + '&action=wrp_predict_rain&nonce=' + wrp_ajax.nonce,
+                dataType: 'json',
                 success: function(response) {
+                    console.log("WRP: AJAX success", response);
                     if (response.success) {
                         setTimeout(function() {
                             showResult(response.data);
-                        }, 5000); // Artificial delay for the "scientific" feel
+                        }, 4500);
                     } else {
-                        alert('Error: ' + response.data);
-                        $loading.hide();
-                        $form.fadeIn();
+                        showError(response.data || 'Error desconocido del servidor');
                     }
                 },
                 error: function(jqXHR, textStatus, errorThrown) {
-                    console.error("AJAX Error:", textStatus, errorThrown);
-                    alert('Error de conexión al procesar el pronóstico.');
-                    $loading.hide();
-                    $form.fadeIn();
+                    console.error("WRP: AJAX Error", textStatus, errorThrown);
+                    showError('Error de conexión con el servidor. Por favor, comprueba tu internet o inténtalo más tarde.');
                 }
             });
         });
+
+        return false;
     });
 
-    function cycleMessages(index) {
-        if (index >= scientificMessages.length) return;
+    $('#wrp-retry').on('click', function() {
+        $errorNotice.hide();
+        $form.fadeIn();
+    });
 
-        $messages.fadeOut(400, function() {
-            $(this).text(scientificMessages[index]).fadeIn();
+    function showError(msg) {
+        $loading.hide();
+        $errorMessage.text(msg);
+        $errorNotice.fadeIn();
+    }
+
+    function cycleMessages(index) {
+        if (index >= scientificMessages.length || !$loading.is(':visible')) return;
+
+        $messages.fadeOut(300, function() {
+            $(this).text(scientificMessages[index]).fadeIn(300);
             setTimeout(function() {
                 cycleMessages(index + 1);
-            }, 800);
+            }, 900);
         });
     }
 
     function showResult(data) {
+        console.log("WRP: Displaying result", data);
         let html = '';
         if (data.prediction === 'no_rain') {
             html = `
@@ -96,8 +124,8 @@ jQuery(document).ready(function($) {
                     <div class="wrp-result-icon">☀️</div>
                     <div class="wrp-result-title">¡Buenas noticias!</div>
                     <p>Nuestro modelo predictivo avanzado indica una <strong>probabilidad de lluvia inferior al 5%</strong> para el día y lugar de vuestra boda.</p>
-                    <p><em>Basado en el análisis de ${data.historical_points} puntos de datos históricos.</em></p>
-                    <button onclick="window.location.reload()" style="margin-top:20px; cursor:pointer; padding: 10px 20px;">Realizar otra consulta</button>
+                    <p><em>Basado en el análisis de ${data.historical_points} puntos de datos históricos reales.</em></p>
+                    <button type="button" onclick="window.location.reload()" class="wrp-reload-btn">Realizar otra consulta</button>
                 </div>
             `;
         } else {
@@ -107,17 +135,16 @@ jQuery(document).ready(function($) {
                     <div class="wrp-result-title">Pronóstico Incierto</div>
                     <p>Existe una <strong>probabilidad moderada de precipitaciones</strong>. Os recomendamos tener un plan B preparado para asegurar que el día sea perfecto.</p>
                     <p><em>Análisis de precisión geoespacial completado.</em></p>
-                    <button onclick="window.location.reload()" style="margin-top:20px; cursor:pointer; padding: 10px 20px;">Realizar otra consulta</button>
+                    <button type="button" onclick="window.location.reload()" class="wrp-reload-btn">Realizar otra consulta</button>
                 </div>
             `;
         }
 
         $loading.fadeOut(400, function() {
             $result.html(html).fadeIn();
-            // Scroll to result on mobile
             $('html, body').animate({
-                scrollTop: $("#wrp-container").offset().top - 20
-            }, 500);
+                scrollTop: $("#wrp-container").offset().top - 40
+            }, 600);
         });
     }
 });
