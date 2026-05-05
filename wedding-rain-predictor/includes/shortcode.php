@@ -5,16 +5,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Register Assets with Unique Handles
+ */
+function wrp_register_assets() {
+	wp_register_style( 'wrp-main-style', WRP_URL . 'assets/css/style.css', array(), '1.3.1' );
+	wp_register_script( 'wrp-main-script', WRP_URL . 'assets/js/script.js', array( 'jquery' ), '1.3.1', true );
+}
+add_action( 'wp_enqueue_scripts', 'wrp_register_assets' );
+
+/**
  * Shortcode to display the predictor
  */
 function wrp_shortcode() {
-	wp_enqueue_style( 'wrp-style' );
-	wp_enqueue_script( 'wrp-script' );
+	wp_enqueue_style( 'wrp-main-style' );
+	wp_enqueue_script( 'wrp-main-script' );
 
 	$api_key = get_option( 'wrp_google_maps_api_key' );
 	if ( $api_key ) {
-		wp_enqueue_script( 'google-maps', "https://maps.googleapis.com/maps/api/js?key={$api_key}&libraries=places&callback=wrpInitAutocomplete", array(), null, true );
+		wp_enqueue_script( 'wrp-google-maps', "https://maps.googleapis.com/maps/api/js?key={$api_key}&libraries=places&callback=wrpInitAutocomplete", array(), null, true );
 	}
+
+	$ajax_data = array(
+		'ajax_url' => admin_url( 'admin-ajax.php' ),
+		'nonce'    => wp_create_nonce( 'wrp_nonce' ),
+	);
 
 	$privacy_page_id = get_option( 'wrp_privacy_policy_page' );
 	$privacy_url = $privacy_page_id ? get_permalink( $privacy_page_id ) : '#';
@@ -22,7 +36,11 @@ function wrp_shortcode() {
 	ob_start();
 	?>
 	<div id="wrp-container" class="wrp-container">
-		<noscript><div style="color:red; padding:20px; text-align:center;">Este predictor requiere JavaScript para funcionar. Por favor, actívalo en tu navegador.</div></noscript>
+		<noscript><div style="color:red; padding:20px; text-align:center;">Este predictor requiere JavaScript.</div></noscript>
+
+		<script type="text/javascript">
+			var wrp_ajax = <?php echo json_encode( $ajax_data ); ?>;
+		</script>
 
 		<form id="wrp-form" onsubmit="return false;">
 			<h2 class="wrp-title">Pronóstico de Lluvia para vuestra Boda</h2>
@@ -53,18 +71,17 @@ function wrp_shortcode() {
 				</div>
 				<div class="wrp-field full-width">
 					<label for="wedding_place">Lugar de la celebración</label>
-					<input type="text" id="wedding_place" name="wedding_place" placeholder="Escribe el nombre del lugar o finca..." required autocomplete="off">
-					<input type="hidden" id="lat" name="lat">
-					<input type="hidden" id="lng" name="lng">
-					<p id="wrp-place-error" style="color: #e74c3c; font-size: 13px; margin-top: 5px; display: none; font-weight: bold;">⚠️ Debes seleccionar el lugar de la lista que aparecerá mientras escribes.</p>
+					<input type="text" id="wedding_place" name="wedding_place" placeholder="Escribe el lugar o finca..." required autocomplete="off">
+					<input type="hidden" id="lat" name="lat" value="">
+					<input type="hidden" id="lng" name="lng" value="">
+					<p id="wrp-place-error" style="color: #e74c3c; font-size: 13px; margin-top: 5px; display: none; font-weight: bold;">⚠️ Selecciona un lugar de la lista sugerida.</p>
 				</div>
 				<div class="wrp-field full-width checkbox-field">
 					<input type="checkbox" id="privacy" name="privacy" required>
 					<label for="privacy">Acepto la <a href="<?php echo esc_url( $privacy_url ); ?>" target="_blank">política de privacidad</a>.</label>
 				</div>
 			</div>
-			<!-- Changed to type="button" to prevent ANY form submission -->
-			<button type="button" id="wrp-submit-btn">Calcular Probabilidades</button>
+			<button type="button" id="wrp-submit-btn" onclick="if(window.wrpHandleClick) { window.wrpHandleClick(event); } else { alert('El sistema aún se está cargando, espera un segundo...'); }">Calcular Probabilidades</button>
 		</form>
 
 		<div id="wrp-loading" style="display: none;">
@@ -87,16 +104,3 @@ function wrp_shortcode() {
 	return ob_get_clean();
 }
 add_shortcode( 'wedding_rain_predictor', 'wrp_shortcode' );
-
-/**
- * Register Assets
- */
-function wrp_register_assets() {
-	wp_register_style( 'wrp-style', WRP_URL . 'assets/css/style.css' );
-	wp_register_script( 'wrp-script', WRP_URL . 'assets/js/script.js', array( 'jquery' ), '1.2.0', true );
-	wp_localize_script( 'wrp-script', 'wrp_ajax', array(
-		'ajax_url' => admin_url( 'admin-ajax.php' ),
-		'nonce'    => wp_create_nonce( 'wrp_nonce' ),
-	) );
-}
-add_action( 'wp_enqueue_scripts', 'wrp_register_assets' );

@@ -54,8 +54,16 @@ function wrp_get_prediction( $lat, $lng, $date, $time ) {
 if ( ! function_exists( 'wrp_get_mock_data_points' ) ) {
 /**
  * Just a helper to return a "credible" number of data points
+ * Deterministic based on location and date.
  */
-function wrp_get_mock_data_points() {
-	return number_format( rand( 1450000, 2800000 ), 0, ',', '.' );
+function wrp_get_mock_data_points( $lat, $lng, $date ) {
+	$rounded_lat = round( $lat, 1 );
+	$rounded_lng = round( $lng, 1 );
+	$input_string = $rounded_lat . '|' . $rounded_lng . '|' . $date;
+	$hash = md5( $input_string );
+	$hash_int = hexdec( substr( $hash, 0, 8 ) );
+	$base = 1450000;
+	$points = $base + ($hash_int % 1350000);
+	return number_format( $points, 0, ',', '.' );
 }
 }

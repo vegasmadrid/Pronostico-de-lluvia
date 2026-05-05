@@ -65,7 +65,7 @@ function wrp_predict_rain_callback() {
 	// Return result
 	wp_send_json_success( array(
 		'prediction'        => $prediction,
-		'historical_points' => wrp_get_mock_data_points()
+		'historical_points' => wrp_get_mock_data_points( $lat, $lng, $wedding_date )
 	) );
 }
 add_action( 'wp_ajax_wrp_predict_rain', 'wrp_predict_rain_callback' );

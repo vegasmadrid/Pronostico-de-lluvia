@@ -1,30 +1,26 @@
 (function($) {
     "use strict";
 
-    console.log("WRP: Script Loading v1.2.1");
+    console.log("WRP: Script Loading v1.3.0");
+
+    $(document).ready(function() {
+        $('#wrp-debug-status').text('Script Status: Active').show();
+        console.log("WRP: Initializing...");
+    });
 
     window.wrpInitAutocomplete = function() {
         console.log("WRP: Autocomplete Init");
-        const input = document.getElementById('wedding_place');
-        if (!input) {
-            console.error("WRP: wedding_place input not found");
-            return;
-        }
-
-        if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
-            console.error("WRP: Google Maps library not loaded");
-            return;
-        }
+        var input = document.getElementById('wedding_place');
+        if (!input) return;
 
         try {
-            const autocomplete = new google.maps.places.Autocomplete(input, {
+            var autocomplete = new google.maps.places.Autocomplete(input, {
                 types: ['geocode', 'establishment'],
                 componentRestrictions: { country: 'es' }
             });
 
             autocomplete.addListener('place_changed', function() {
-                const place = autocomplete.getPlace();
-                console.log("WRP: Place changed", place);
+                var place = autocomplete.getPlace();
                 if (!place.geometry) {
                     $('#lat').val('');
                     $('#lng').val('');
@@ -33,111 +29,101 @@
                 $('#lat').val(place.geometry.location.lat());
                 $('#lng').val(place.geometry.location.lng());
                 $('#wrp-place-error').hide();
+                console.log("WRP: Place updated", place.geometry.location.lat(), place.geometry.location.lng());
             });
         } catch (e) {
-            console.error("WRP: Error initializing autocomplete", e);
+            console.error("WRP: Google Maps Error", e);
         }
     };
 
-    $(document).ready(function() {
-        console.log("WRP: Document Ready");
+    window.wrpHandleClick = function(e) {
+        console.log("WRP: Click Handled");
+        if (e) e.preventDefault();
 
-        const $container = $('#wrp-container');
-        if (!$container.length) {
-            console.error("WRP: Container not found");
+        var $form = $('#wrp-form');
+        var $submitBtn = $('#wrp-submit-btn');
+        var $loading = $('#wrp-loading');
+        var $result = $('#wrp-result');
+        var $messages = $('#wrp-messages');
+        var $errorNotice = $('#wrp-error-notice');
+        var $errorMessage = $('#wrp-error-message');
+
+        // Validation
+        var allValid = true;
+        $form.find('[required]').each(function() {
+            var $el = $(this);
+            if ($el.is(':checkbox')) {
+                if (!$el.is(':checked')) allValid = false;
+            } else {
+                if (!$el.val()) allValid = false;
+            }
+        });
+
+        if (!allValid) {
+            alert('Por favor, rellena todos los campos obligatorios.');
             return;
         }
 
-        const $form = $('#wrp-form');
-        const $submitBtn = $('#wrp-submit-btn');
-        const $loading = $('#wrp-loading');
-        const $result = $('#wrp-result');
-        const $messages = $('#wrp-messages');
-        const $errorNotice = $('#wrp-error-notice');
-        const $errorMessage = $('#wrp-error-message');
+        var lat = $('#lat').val();
+        var lng = $('#lng').val();
 
-        const scientificMessages = [
-            "Conectando con satélites meteorológicos...",
-            "Analizando modelos de regresión histórica...",
-            "Sincronizando datos climatológicos (200 años)...",
-            "Calculando vectores de probabilidad mediante IA...",
-            "Procesando microclimas locales...",
-            "Finalizando correlación geoespacial..."
-        ];
+        if (!lat || !lng) {
+            $('#wrp-place-error').fadeIn();
+            $('#wedding_place').focus();
+            return;
+        }
 
-        $submitBtn.on('click', function(e) {
-            console.log("WRP: Button Clicked");
-            e.preventDefault();
+        $submitBtn.prop('disabled', true).text('Procesando...');
 
-            // Validate fields
-            let firstInvalid = null;
-            $form.find('[required]').each(function() {
-                const $el = $(this);
-                let invalid = false;
-                if ($el.is(':checkbox')) {
-                    if (!$el.is(':checked')) invalid = true;
-                } else {
-                    if (!$el.val()) invalid = true;
-                }
+        $form.fadeOut(400, function() {
+            $loading.fadeIn();
 
-                if (invalid) {
-                    $el.css('border-color', 'red');
-                    if (!firstInvalid) firstInvalid = $el;
-                } else {
-                    $el.css('border-color', '#ddd');
-                }
-            });
+            var scientificMessages = [
+                "Conectando con satélites...",
+                "Analizando registros históricos...",
+                "Sincronizando datos climatológicos...",
+                "Calculando probabilidades mediante IA...",
+                "Procesando microclimas locales...",
+                "Finalizando correlación..."
+            ];
 
-            if (firstInvalid) {
-                alert('Por favor, rellena todos los campos obligatorios.');
-                firstInvalid.focus();
-                return;
-            }
-
-            const lat = $('#lat').val();
-            const lng = $('#lng').val();
-
-            if (!lat || !lng) {
-                console.log("WRP: Coordinates missing");
-                $('#wrp-place-error').fadeIn();
-                $('#wedding_place').focus();
-                return;
-            }
-
-            console.log("WRP: Validation passed, starting AJAX");
-            $submitBtn.prop('disabled', true).text('Procesando...');
-
-            $form.fadeOut(400, function() {
-                $loading.fadeIn();
-                cycleMessages(0);
-
-                $.ajax({
-                    url: wrp_ajax.ajax_url,
-                    type: 'POST',
-                    data: $form.serialize() + '&action=wrp_predict_rain&nonce=' + wrp_ajax.nonce,
-                    dataType: 'json',
-                    success: function(response) {
-                        console.log("WRP: Response received", response);
-                        if (response.success) {
-                            setTimeout(function() {
-                                showResult(response.data);
-                            }, 4000);
-                        } else {
-                            showError(response.data || 'Error en el servidor');
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error("WRP: AJAX Error", status, error);
-                        showError('Error de conexión. Por favor, inténtalo de nuevo.');
-                    }
+            function cycleMessages(index) {
+                if (index >= scientificMessages.length || !$loading.is(':visible')) return;
+                $messages.fadeOut(300, function() {
+                    $(this).text(scientificMessages[index]).fadeIn(300);
+                    setTimeout(function() { cycleMessages(index + 1); }, 900);
                 });
-            });
-        });
+            }
+            cycleMessages(0);
 
-        $('#wrp-retry-btn').on('click', function() {
-            $errorNotice.hide();
-            $submitBtn.prop('disabled', false).text('Calcular Probabilidades');
-            $form.fadeIn();
+            $.ajax({
+                url: wrp_ajax.ajax_url,
+                type: 'POST',
+                data: $form.serialize() + '&action=wrp_predict_rain&nonce=' + wrp_ajax.nonce,
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        setTimeout(function() {
+                            $loading.fadeOut(400, function() {
+                                var data = response.data;
+                                var html = '';
+                                if (data.prediction === 'no_rain') {
+                                    html = '<div class="wrp-result-card no-rain"><div class="wrp-result-icon">☀️</div><div class="wrp-result-title">¡Buenas noticias!</div><p>Nuestro modelo indica una <strong>probabilidad de lluvia inferior al 5%</strong>.</p><p><em>Análisis de '+data.historical_points+' puntos históricos.</em></p><button type="button" onclick="window.location.reload()" class="wrp-reload-btn">Nueva consulta</button></div>';
+                                } else {
+                                    html = '<div class="wrp-result-card rain"><div class="wrp-result-icon">🌦️</div><div class="wrp-result-title">Pronóstico Incierto</div><p>Existe una <strong>probabilidad moderada de precipitaciones</strong>.</p><p><em>Análisis completado.</em></p><button type="button" onclick="window.location.reload()" class="wrp-reload-btn">Nueva consulta</button></div>';
+                                }
+                                $result.html(html).fadeIn();
+                                $('html, body').animate({ scrollTop: $('#wrp-container').offset().top - 20 }, 500);
+                            });
+                        }, 4000);
+                    } else {
+                        showError(response.data || 'Error del servidor');
+                    }
+                },
+                error: function() {
+                    showError('Error de conexión.');
+                }
+            });
         });
 
         function showError(msg) {
@@ -145,48 +131,20 @@
             $errorMessage.text(msg);
             $errorNotice.fadeIn();
         }
+    };
 
-        function cycleMessages(index) {
-            if (index >= scientificMessages.length || !$loading.is(':visible')) return;
-            $messages.fadeOut(300, function() {
-                $(this).text(scientificMessages[index]).fadeIn(300);
-                setTimeout(function() {
-                    cycleMessages(index + 1);
-                }, 900);
-            });
+    // Attach to button only if the onclick attribute failed (extra safety)
+    $(document).ready(function() {
+        var $btn = $('#wrp-submit-btn');
+        if ($btn.length && !$btn.attr('onclick')) {
+            $btn.on('click', window.wrpHandleClick);
         }
 
-        function showResult(data) {
-            let html = '';
-            if (data.prediction === 'no_rain') {
-                html = `
-                    <div class="wrp-result-card no-rain">
-                        <div class="wrp-result-icon">☀️</div>
-                        <div class="wrp-result-title">¡Buenas noticias!</div>
-                        <p>Nuestro modelo predictivo indica una <strong>probabilidad de lluvia inferior al 5%</strong>.</p>
-                        <p><em>Basado en el análisis de ${data.historical_points} puntos de datos.</em></p>
-                        <button type="button" onclick="window.location.reload()" class="wrp-reload-btn">Nueva consulta</button>
-                    </div>
-                `;
-            } else {
-                html = `
-                    <div class="wrp-result-card rain">
-                        <div class="wrp-result-icon">🌦️</div>
-                        <div class="wrp-result-title">Pronóstico Incierto</div>
-                        <p>Existe una <strong>probabilidad moderada de precipitaciones</strong>.</p>
-                        <p><em>Análisis de precisión geoespacial completado.</em></p>
-                        <button type="button" onclick="window.location.reload()" class="wrp-reload-btn">Nueva consulta</button>
-                    </div>
-                `;
-            }
-
-            $loading.fadeOut(400, function() {
-                $result.html(html).fadeIn();
-                $('html, body').animate({
-                    scrollTop: $container.offset().top - 20
-                }, 500);
-            });
-        }
+        $('#wrp-retry-btn').on('click', function() {
+            $('#wrp-error-notice').hide();
+            $('#wrp-submit-btn').prop('disabled', false).text('Calcular Probabilidades');
+            $('#wrp-form').fadeIn();
+        });
     });
 
 })(jQuery);
