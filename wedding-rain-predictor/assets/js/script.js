@@ -1,34 +1,52 @@
 (function($) {
     "use strict";
 
-    console.log("WRP: Script Loading");
+    console.log("WRP: Script Loading v1.2.1");
 
     window.wrpInitAutocomplete = function() {
         console.log("WRP: Autocomplete Init");
         const input = document.getElementById('wedding_place');
-        if (!input) return;
+        if (!input) {
+            console.error("WRP: wedding_place input not found");
+            return;
+        }
 
-        const autocomplete = new google.maps.places.Autocomplete(input, {
-            types: ['geocode', 'establishment'],
-            componentRestrictions: { country: 'es' }
-        });
+        if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
+            console.error("WRP: Google Maps library not loaded");
+            return;
+        }
 
-        autocomplete.addListener('place_changed', function() {
-            const place = autocomplete.getPlace();
-            if (!place.geometry) {
-                $('#lat').val('');
-                $('#lng').val('');
-                return;
-            }
-            $('#lat').val(place.geometry.location.lat());
-            $('#lng').val(place.geometry.location.lng());
-            $('#wrp-place-error').hide();
-            console.log("WRP: Place selected & coordinates set");
-        });
+        try {
+            const autocomplete = new google.maps.places.Autocomplete(input, {
+                types: ['geocode', 'establishment'],
+                componentRestrictions: { country: 'es' }
+            });
+
+            autocomplete.addListener('place_changed', function() {
+                const place = autocomplete.getPlace();
+                console.log("WRP: Place changed", place);
+                if (!place.geometry) {
+                    $('#lat').val('');
+                    $('#lng').val('');
+                    return;
+                }
+                $('#lat').val(place.geometry.location.lat());
+                $('#lng').val(place.geometry.location.lng());
+                $('#wrp-place-error').hide();
+            });
+        } catch (e) {
+            console.error("WRP: Error initializing autocomplete", e);
+        }
     };
 
     $(document).ready(function() {
         console.log("WRP: Document Ready");
+
+        const $container = $('#wrp-container');
+        if (!$container.length) {
+            console.error("WRP: Container not found");
+            return;
+        }
 
         const $form = $('#wrp-form');
         const $submitBtn = $('#wrp-submit-btn');
@@ -47,26 +65,32 @@
             "Finalizando correlación geoespacial..."
         ];
 
-        // Main action on button click
         $submitBtn.on('click', function(e) {
             console.log("WRP: Button Clicked");
             e.preventDefault();
 
-            // Basic validation check (since we are not using 'submit')
-            const requiredFields = $form.find('[required]');
-            let allValid = true;
-
-            requiredFields.each(function() {
-                if (!$(this).val() || ($(this).is(':checkbox') && !$(this).is(':checked'))) {
-                    allValid = false;
-                    $(this).css('border-color', 'red');
+            // Validate fields
+            let firstInvalid = null;
+            $form.find('[required]').each(function() {
+                const $el = $(this);
+                let invalid = false;
+                if ($el.is(':checkbox')) {
+                    if (!$el.is(':checked')) invalid = true;
                 } else {
-                    $(this).css('border-color', '#ddd');
+                    if (!$el.val()) invalid = true;
+                }
+
+                if (invalid) {
+                    $el.css('border-color', 'red');
+                    if (!firstInvalid) firstInvalid = $el;
+                } else {
+                    $el.css('border-color', '#ddd');
                 }
             });
 
-            if (!allValid) {
-                alert('Por favor, rellena todos los campos obligatorios y acepta la política de privacidad.');
+            if (firstInvalid) {
+                alert('Por favor, rellena todos los campos obligatorios.');
+                firstInvalid.focus();
                 return;
             }
 
@@ -74,15 +98,14 @@
             const lng = $('#lng').val();
 
             if (!lat || !lng) {
-                console.log("WRP: Missing Lat/Lng");
+                console.log("WRP: Coordinates missing");
                 $('#wrp-place-error').fadeIn();
-                $('html, body').animate({
-                    scrollTop: $('#wedding_place').offset().top - 100
-                }, 500);
+                $('#wedding_place').focus();
                 return;
             }
 
-            const formData = $form.serialize();
+            console.log("WRP: Validation passed, starting AJAX");
+            $submitBtn.prop('disabled', true).text('Procesando...');
 
             $form.fadeOut(400, function() {
                 $loading.fadeIn();
@@ -91,9 +114,10 @@
                 $.ajax({
                     url: wrp_ajax.ajax_url,
                     type: 'POST',
-                    data: formData + '&action=wrp_predict_rain&nonce=' + wrp_ajax.nonce,
+                    data: $form.serialize() + '&action=wrp_predict_rain&nonce=' + wrp_ajax.nonce,
                     dataType: 'json',
                     success: function(response) {
+                        console.log("WRP: Response received", response);
                         if (response.success) {
                             setTimeout(function() {
                                 showResult(response.data);
@@ -102,8 +126,9 @@
                             showError(response.data || 'Error en el servidor');
                         }
                     },
-                    error: function() {
-                        showError('Error de conexión. Revisa tu internet.');
+                    error: function(xhr, status, error) {
+                        console.error("WRP: AJAX Error", status, error);
+                        showError('Error de conexión. Por favor, inténtalo de nuevo.');
                     }
                 });
             });
@@ -111,6 +136,7 @@
 
         $('#wrp-retry-btn').on('click', function() {
             $errorNotice.hide();
+            $submitBtn.prop('disabled', false).text('Calcular Probabilidades');
             $form.fadeIn();
         });
 
@@ -126,7 +152,7 @@
                 $(this).text(scientificMessages[index]).fadeIn(300);
                 setTimeout(function() {
                     cycleMessages(index + 1);
-                }, 800);
+                }, 900);
             });
         }
 
@@ -157,7 +183,7 @@
             $loading.fadeOut(400, function() {
                 $result.html(html).fadeIn();
                 $('html, body').animate({
-                    scrollTop: $("#wrp-container").offset().top - 20
+                    scrollTop: $container.offset().top - 20
                 }, 500);
             });
         }
