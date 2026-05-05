@@ -13,7 +13,6 @@ function wrp_shortcode() {
 
 	$api_key = get_option( 'wrp_google_maps_api_key' );
 	if ( $api_key ) {
-		// Use a unique callback to avoid conflicts
 		wp_enqueue_script( 'google-maps', "https://maps.googleapis.com/maps/api/js?key={$api_key}&libraries=places&callback=wrpInitAutocomplete", array(), null, true );
 	}
 
@@ -23,7 +22,9 @@ function wrp_shortcode() {
 	ob_start();
 	?>
 	<div id="wrp-container" class="wrp-container">
-		<form id="wrp-form" method="post" action="" onsubmit="return false;">
+		<noscript><div style="color:red; padding:20px; text-align:center;">Este predictor requiere JavaScript para funcionar. Por favor, actívalo en tu navegador.</div></noscript>
+
+		<form id="wrp-form" onsubmit="return false;">
 			<h2 class="wrp-title">Pronóstico de Lluvia para vuestra Boda</h2>
 			<div class="wrp-grid">
 				<div class="wrp-field">
@@ -40,7 +41,7 @@ function wrp_shortcode() {
 				</div>
 				<div class="wrp-field">
 					<label for="phone">Teléfono (España)</label>
-					<input type="tel" id="phone" name="phone" pattern="[0-9]{9}" placeholder="600111222" required title="Introduce un número de 9 dígitos">
+					<input type="tel" id="phone" name="phone" pattern="[0-9]{9}" placeholder="600111222" required>
 				</div>
 				<div class="wrp-field">
 					<label for="wedding_date">Fecha de la Boda</label>
@@ -55,14 +56,15 @@ function wrp_shortcode() {
 					<input type="text" id="wedding_place" name="wedding_place" placeholder="Escribe el nombre del lugar o finca..." required autocomplete="off">
 					<input type="hidden" id="lat" name="lat">
 					<input type="hidden" id="lng" name="lng">
-					<p id="wrp-place-error" style="color: #e74c3c; font-size: 12px; margin-top: 5px; display: none;">Debes seleccionar un lugar de la lista sugerida por Google.</p>
+					<p id="wrp-place-error" style="color: #e74c3c; font-size: 13px; margin-top: 5px; display: none; font-weight: bold;">⚠️ Debes seleccionar el lugar de la lista que aparecerá mientras escribes.</p>
 				</div>
 				<div class="wrp-field full-width checkbox-field">
 					<input type="checkbox" id="privacy" name="privacy" required>
-					<label for="privacy">Acepto la <a href="<?php echo esc_url( $privacy_url ); ?>" target="_blank">política de privacidad</a> para recibir el pronóstico.</label>
+					<label for="privacy">Acepto la <a href="<?php echo esc_url( $privacy_url ); ?>" target="_blank">política de privacidad</a>.</label>
 				</div>
 			</div>
-			<button type="submit" id="wrp-submit">Calcular Probabilidades</button>
+			<!-- Changed to type="button" to prevent ANY form submission -->
+			<button type="button" id="wrp-submit-btn">Calcular Probabilidades</button>
 		</form>
 
 		<div id="wrp-loading" style="display: none;">
@@ -74,13 +76,11 @@ function wrp_shortcode() {
 			<div id="wrp-messages">Iniciando análisis de precisión...</div>
 		</div>
 
-		<div id="wrp-result" style="display: none;">
-			<!-- Result will be injected here -->
-		</div>
+		<div id="wrp-result" style="display: none;"></div>
 
 		<div id="wrp-error-notice" style="display: none; background: #fdf2f2; border: 1px solid #f8b4b4; color: #9b2c2c; padding: 15px; margin-top: 20px; border-radius: 5px; text-align: center;">
 			<p id="wrp-error-message"></p>
-			<button type="button" id="wrp-retry" style="margin-top: 10px; cursor: pointer;">Intentar de nuevo</button>
+			<button type="button" id="wrp-retry-btn" class="wrp-reload-btn">Intentar de nuevo</button>
 		</div>
 	</div>
 	<?php
@@ -93,7 +93,7 @@ add_shortcode( 'wedding_rain_predictor', 'wrp_shortcode' );
  */
 function wrp_register_assets() {
 	wp_register_style( 'wrp-style', WRP_URL . 'assets/css/style.css' );
-	wp_register_script( 'wrp-script', WRP_URL . 'assets/js/script.js', array( 'jquery' ), '1.1.0', true );
+	wp_register_script( 'wrp-script', WRP_URL . 'assets/js/script.js', array( 'jquery' ), '1.2.0', true );
 	wp_localize_script( 'wrp-script', 'wrp_ajax', array(
 		'ajax_url' => admin_url( 'admin-ajax.php' ),
 		'nonce'    => wp_create_nonce( 'wrp_nonce' ),
